@@ -1,77 +1,185 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.Globalization;
 
 namespace Study.LabWork1.Features.Task1
 {
-    public class MySet<T>
+    public sealed class RgbaPixel : IEquatable<RgbaPixel>
     {
-        private readonly HashSet<T> _storage;
-        public int Size => _storage.Count;
+        public byte Red { get; }
+        public byte Green { get; }
+        public byte Blue { get; }
+        public double Alpha { get; }
 
-        public MySet(IEnumerable<T> collection)
+        public RgbaPixel(int red, int green, int blue, double alpha)
         {
-            _storage = new HashSet<T>(collection ?? Enumerable.Empty<T>());
+            Red = ClampByte(red);
+            Green = ClampByte(green);
+            Blue = ClampByte(blue);
+            Alpha = ClampAlpha(alpha);
+        }
+
+        private static byte ClampByte(int value)
+        {
+            if (value < 0)
+            {
+                return 0;
+            }
+
+            if (value > 255)
+            {
+                return 255;
+            }
+
+            return (byte)value;
+        }
+
+        private static double ClampAlpha(double value)
+        {
+            if (value < 0.0)
+            {
+                return 0.0;
+            }
+
+            if (value > 1.0)
+            {
+                return 1.0;
+            }
+
+            return value;
+        }
+
+        public string ToHex()
+        {
+            return $"#{Red:X2}{Green:X2}{Blue:X2}";
+        }
+
+        public string ToHexWithAlpha()
+        {
+            int alphaByte = (int)Math.Round(Alpha * 255, MidpointRounding.AwayFromZero);
+            alphaByte = Math.Clamp(alphaByte, 0, 255);
+            return $"#{Red:X2}{Green:X2}{Blue:X2}{alphaByte:X2}";
         }
 
         public override string ToString()
         {
-            return "{" + string.Join(", ", _storage) + "}";
+            return string.Format(
+                CultureInfo.InvariantCulture,
+                "rgba({0}, {1}, {2}, {3})",
+                Red,
+                Green,
+                Blue,
+                Alpha);
         }
 
-        public static bool operator ==(MySet<T> first, MySet<T> second)
+        public bool Equals(RgbaPixel? other)
         {
-            if (ReferenceEquals(first, second)) return true;
-            if (first is null || second is null) return false;
+            if (other is null)
+            {
+                return false;
+            }
 
-            return first._storage.SetEquals(second._storage);
+            return Red == other.Red
+                   && Green == other.Green
+                   && Blue == other.Blue
+                   && Alpha.Equals(other.Alpha);
         }
 
-        public static bool operator !=(MySet<T> first, MySet<T> second)
+        public override bool Equals(object? obj)
         {
-            return !(first == second);
-        }
-
-        public override bool Equals(object obj)
-        {
-            return this == (obj as MySet<T>);
+            return Equals(obj as RgbaPixel);
         }
 
         public override int GetHashCode()
         {
-            return _storage.Count;
+            return HashCode.Combine(Red, Green, Blue, Alpha);
         }
 
-
-        public static MySet<T> operator |(MySet<T> first, MySet<T> second)
+        public static RgbaPixel operator +(RgbaPixel left, RgbaPixel right)
         {
-            if (first is null || second is null) return new MySet<T>(null);
-            return new MySet<T>(first._storage.Union(second._storage));
+            ArgumentNullException.ThrowIfNull(left);
+            ArgumentNullException.ThrowIfNull(right);
+
+            return new RgbaPixel(
+                left.Red + right.Red,
+                left.Green + right.Green,
+                left.Blue + right.Blue,
+                left.Alpha + right.Alpha);
         }
 
-
-        public static MySet<T> operator &(MySet<T> first, MySet<T> second)
+        public static RgbaPixel operator -(RgbaPixel left, RgbaPixel right)
         {
-            if (first is null || second is null) return new MySet<T>(null);
-            return new MySet<T>(first._storage.Intersect(second._storage));
+            ArgumentNullException.ThrowIfNull(left);
+            ArgumentNullException.ThrowIfNull(right);
+
+            return new RgbaPixel(
+                left.Red - right.Red,
+                left.Green - right.Green,
+                left.Blue - right.Blue,
+                left.Alpha - right.Alpha);
         }
 
-
-        public static MySet<T> operator -(MySet<T> first, MySet<T> second)
+        public static RgbaPixel operator *(RgbaPixel left, RgbaPixel right)
         {
-            if (first is null || second is null) return new MySet<T>(null);
-            return new MySet<T>(first._storage.Except(second._storage));
+            ArgumentNullException.ThrowIfNull(left);
+            ArgumentNullException.ThrowIfNull(right);
+
+            return new RgbaPixel(
+                left.Red * right.Red / 255,
+                left.Green * right.Green / 255,
+                left.Blue * right.Blue / 255,
+                left.Alpha * right.Alpha);
         }
 
-
-        public static MySet<T> operator /(MySet<T> first, MySet<T> second)
+        public static RgbaPixel operator *(RgbaPixel pixel, double scalar)
         {
-            if (first is null || second is null) return new MySet<T>(null);
+            ArgumentNullException.ThrowIfNull(pixel);
 
-            var union = first._storage.Union(second._storage);
-            var intersect = first._storage.Intersect(second._storage);
+            return new RgbaPixel(
+                (int)Math.Round(pixel.Red * scalar, MidpointRounding.AwayFromZero),
+                (int)Math.Round(pixel.Green * scalar, MidpointRounding.AwayFromZero),
+                (int)Math.Round(pixel.Blue * scalar, MidpointRounding.AwayFromZero),
+                pixel.Alpha * scalar);
+        }
 
-            return new MySet<T>(union.Except(intersect));
+        public static RgbaPixel operator *(double scalar, RgbaPixel pixel)
+        {
+            return pixel * scalar;
+        }
+
+        public static RgbaPixel operator /(RgbaPixel pixel, double scalar)
+        {
+            ArgumentNullException.ThrowIfNull(pixel);
+
+            if (scalar == 0)
+            {
+                throw new DivideByZeroException("Нельзя делить пиксель на 0.");
+            }
+
+            return new RgbaPixel(
+                (int)Math.Round(pixel.Red / scalar, MidpointRounding.AwayFromZero),
+                (int)Math.Round(pixel.Green / scalar, MidpointRounding.AwayFromZero),
+                (int)Math.Round(pixel.Blue / scalar, MidpointRounding.AwayFromZero),
+                pixel.Alpha / scalar);
+        }
+
+        public static bool operator ==(RgbaPixel? left, RgbaPixel? right)
+        {
+            if (ReferenceEquals(left, right))
+            {
+                return true;
+            }
+
+            if (left is null || right is null)
+            {
+                return false;
+            }
+
+            return left.Equals(right);
+        }
+
+        public static bool operator !=(RgbaPixel? left, RgbaPixel? right)
+        {
+            return !(left == right);
         }
     }
 }
